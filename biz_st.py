@@ -30,3 +30,23 @@ st.write("Hello, Streamlit", name)
 
 st.latex("\int_a^b f(x)dx")
 "$$\int_a^b f(x)dx$$"
+
+'#### :orange[정보: st.info()]'
+st.info(
+    icon="☀️",
+    body='''
+    **: sunglasses: 이것은 정보를 제공하는 콜아웃입니다.**
+    - :red[빨간색 텍스트]
+    - :blue[파란색 텍스트]
+    - :green[초록색 텍스트]
+    - :orange[주황색 텍스트]
+    '''
+)
+'#### :orange[경고: st.warning()]' 
+st. warning('This is a warning message', icon="☁️")
+
+'#### :orange[에러: st.error()]'
+st.error('This is an error message', icon="🎶")
+
+'#### :orange[성공: st.success()]'
+st. success('This is a success message', icon="❤️ ")
