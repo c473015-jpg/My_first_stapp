@@ -31,6 +31,21 @@ st.write("Hello, Streamlit", name)
 st.latex("\int_a^b f(x)dx")
 "$$\int_a^b f(x)dx$$"
 
+'#### :orange[이미지: st. image()]'
+st.image("./data/python.png", caption="파이썬 로고", width=500)
+
+'#### :orange[오디오: st.audio()]'
+st.audio("./data/After_You-mp3", format="audio/mpeg", loop=True)
+
+'#### :orange[동영상: st.video()]' 
+#'rb' : 바이너리 모드로 파일 열기
+video_file = open("./data/stars.mp4","rb")
+video_bytes = video_file.read()
+
+st. video(video_bytes)
+
+st.divider() # 구분선
+
 '#### :orange[정보: st.info()]'
 st.info(
     icon="☀️",
@@ -50,3 +65,4 @@ st.error('This is an error message', icon="🎶")
 
 '#### :orange[성공: st.success()]'
 st. success('This is a success message', icon="❤️ ")
+
