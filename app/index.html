@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>가계부 관리</title>
+  <!-- Content Security Policy -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <main class="container">
+    <h1 class="title">가계부</h1>
+    <section class="form-section">
+      <input type="date" id="date" class="input" />
+      <input type="text" id="category" placeholder="카테고리" class="input" />
+      <input type="number" id="amount" placeholder="금액" class="input" />
+      <button id="addBtn" class="btn">추가</button>
+    </section>
+    <section class="list-section">
+      <h2 class="subtitle">지출 내역</h2>
+      <ul id="expenseList" class="expense-list"></ul>
+    </section>
+    <section class="summary-section">
+      <h2 class="subtitle">총합계</h2>
+      <p id="totalAmount" class="total">0 원</p>
+    </section>
+  </main>
+  <script src="assets/app.js"></script>
+</body>
+</html>
