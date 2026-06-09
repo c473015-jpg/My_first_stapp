@@ -1,5 +1,6 @@
 # Refactored Planner & Diary application using Streamlit
-# Security: input validation, atomic JSON writes, no eval/exec, limited file paths
+# Security: input validation, atomic JSON writes,
+# no eval/exec, limited file paths
 
 import json
 import os
@@ -19,6 +20,8 @@ DATA_FILE = os.path.join(APP_DIR, "events.json")
 # ---------------------------------------------------------------------------
 # Data handling
 # ---------------------------------------------------------------------------
+
+
 def load_events():
     """Load events from the JSON file. Returns a list of dicts."""
     if not os.path.exists(DATA_FILE):
@@ -30,6 +33,7 @@ def load_events():
         st.error(f"[Error] Failed to load events: {e}")
         return []
 
+
 def save_events(events):
     """Save events atomically to the JSON file."""
     temp_path = DATA_FILE + ".tmp"
@@ -39,6 +43,7 @@ def save_events(events):
         os.replace(temp_path, DATA_FILE)
     except Exception as e:
         st.error(f"[Error] Failed to save events: {e}")
+
 
 def add_event(title, start_dt, repeat=None, description=""):
     """Create a new event and persist it.
@@ -56,14 +61,18 @@ def add_event(title, start_dt, repeat=None, description=""):
     save_events(events)
     return event
 
+
 def delete_event(event_id):
     events = load_events()
     events = [e for e in events if e["id"] != event_id]
     save_events(events)
 
+
 # ---------------------------------------------------------------------------
 # Scheduling & notifications
 # ---------------------------------------------------------------------------
+
+
 def get_due_events(now=None):
     """Return events that should trigger a notification at *now*.
     Handles repeating logic.
@@ -76,18 +85,31 @@ def get_due_events(now=None):
         repeat = ev.get("repeat")
         # Compute next occurrence based on repeat interval
         if repeat == "daily":
-            next_occ = start.replace(year=now.year, month=now.month, day=now.day)
+            next_occ = start.replace(
+                year=now.year, month=now.month, day=now.day
+            )
             if next_occ < now:
                 next_occ += timedelta(days=1)
         elif repeat == "weekly":
             days_ahead = (start.weekday() - now.weekday()) % 7
             next_occ = now + timedelta(days=days_ahead)
-            next_occ = next_occ.replace(hour=start.hour, minute=start.minute, second=start.second, microsecond=0)
+            next_occ = next_occ.replace(
+                hour=start.hour,
+                minute=start.minute,
+                second=start.second,
+                microsecond=0,
+            )
             if next_occ < now:
                 next_occ += timedelta(weeks=1)
         elif repeat == "monthly":
             try:
-                next_occ = now.replace(day=start.day, hour=start.hour, minute=start.minute, second=start.second, microsecond=0)
+                next_occ = now.replace(
+                    day=start.day,
+                    hour=start.hour,
+                    minute=start.minute,
+                    second=start.second,
+                    microsecond=0,
+                )
             except ValueError:
                 continue
             if next_occ < now:
@@ -104,6 +126,7 @@ def get_due_events(now=None):
             due.append((ev, next_occ))
     return due
 
+
 def notify(event, occ_time):
     """Show a desktop notification for *event* using plyer."""
     title = f"일정 알림: {event['title']}"
@@ -115,19 +138,23 @@ def notify(event, occ_time):
     except Exception as e:
         st.error(f"[Error] Notification failed: {e}")
 
+
 def check_and_notify():
     now = datetime.now()
     for ev, occ in get_due_events(now):
         notify(ev, occ)
 
+
 # Schedule the check to run every minute
 schedule.every(1).minutes.do(check_and_notify)
+
 
 def scheduler_loop():
     """Background thread that runs pending schedule jobs every second."""
     while True:
         schedule.run_pending()
         threading.Event().wait(1)
+
 
 # Ensure the scheduler thread is started only once per session
 if "scheduler_started" not in st.session_state:
@@ -171,16 +198,33 @@ elif section == "일정 보기":
         # Prepare table data
         table_data = []
         for ev in events:
-            start = datetime.fromisoformat(ev["start"]).strftime("%Y-%m-%d %H:%M")
+            start = datetime.fromisoformat(ev["start"]).strftime(
+                "%Y-%m-%d %H:%M"
+            )
             repeat = ev.get("repeat") or "없음"
-            table_data.append({"ID": ev["id"], "제목": ev["title"], "시작": start, "반복": repeat, "설명": ev.get("description", "")})
+            table_data.append(
+                {
+                    "ID": ev["id"],
+                    "제목": ev["title"],
+                    "시작": start,
+                    "반복": repeat,
+                    "설명": ev.get("description", ""),
+                }
+            )
         st.dataframe(table_data, hide_index=True)
         # Deletion UI
-        ids_to_delete = st.multiselect("삭제할 일정을 선택하세요", options=[ev["id"] for ev in events], format_func=lambda x: next(e["title"] for e in events if e["id"] == x))
+        ids_to_delete = st.multiselect(
+            "삭제할 일정을 선택하세요",
+            options=[ev["id"] for ev in events],
+            format_func=lambda x: next(
+                e["title"] for e in events if e["id"] == x
+            ),
+        )
         if st.button("선택된 일정 삭제"):
             for eid in ids_to_delete:
                 delete_event(eid)
             st.success("선택된 일정이 삭제되었습니다.")
-            st.experimental_rerun()
+            st.rerun()
 
-# Note: The background scheduler thread will continue to run and send OS notifications via plyer.
+# Note: The background scheduler thread will continue to run and send OS
+# notifications via plyer.
