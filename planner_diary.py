@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 import schedule
 from plyer import notification
 import streamlit as st
+from streamlit_calendar import calendar
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -200,17 +201,48 @@ if section == "일정 추가":
                 st.rerun()
 
 elif section == "일정 보기":
-    st.header("일정 목록")
+    st.header("📅 월간 달력")
+    # Load events and convert to FullCalendar format
     events = load_events()
-    if not events:
-        st.info("등록된 일정이 없습니다.")
+    calendar_events = [
+        {"id": ev["id"], "title": ev["title"], "start": ev["start"]} for ev in events
+    ]
+
+    # Calendar options
+    calendar_options = {
+        "initialView": "dayGridMonth",
+        "headerToolbar": {
+            "left": "prev,next today",
+            "center": "title",
+                        "right": "dayGridMonth,timeGridWeek",
+      "StartLine": 215
+        },
+        "selectable": True,
+        "eventClick": True,
+    }
+
+    # Render calendar component
+    cal_state = calendar(events=calendar_events, options=calendar_options)
+
+    # Determine selected date
+    selected_date = None
+    if cal_state and "date" in cal_state and cal_state["date"]:
+        selected_date = datetime.fromisoformat(cal_state["date"]).date()
     else:
-        # Prepare table data
+        selected_date = datetime.now().date()
+
+    # Filter events for the selected date
+    filtered_events = [
+        ev for ev in events if datetime.fromisoformat(ev["start"]).date() == selected_date
+    ]
+
+    if not filtered_events:
+        st.info(f"선택한 날짜({selected_date})에 일정이 없습니다.")
+    else:
+        st.subheader(f"{selected_date} 일정")
         table_data = []
-        for ev in events:
-            start = datetime.fromisoformat(ev["start"]).strftime(
-                "%Y-%m-%d %H:%M"
-            )
+        for ev in filtered_events:
+            start = datetime.fromisoformat(ev["start"]).strftime("%Y-%m-%d %H:%M")
             repeat = ev.get("repeat") or "없음"
             table_data.append(
                 {
@@ -222,12 +254,13 @@ elif section == "일정 보기":
                 }
             )
         st.dataframe(table_data, hide_index=True)
-        # Deletion UI
+
+        # Deletion UI for filtered events
         ids_to_delete = st.multiselect(
             "삭제할 일정을 선택하세요",
-            options=[ev["id"] for ev in events],
+            options=[ev["id"] for ev in filtered_events],
             format_func=lambda x: next(
-                e["title"] for e in events if e["id"] == x
+                e["title"] for e in filtered_events if e["id"] == x
             ),
         )
         if st.button("선택된 일정 삭제"):
@@ -235,6 +268,7 @@ elif section == "일정 보기":
                 delete_event(eid)
             st.toast("선택된 일정이 삭제되었습니다.", icon="✅")
             st.rerun()
+
 
 # Note: The background scheduler thread will continue to run and send OS
 # notifications via plyer.
