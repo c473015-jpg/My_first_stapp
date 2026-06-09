@@ -168,7 +168,13 @@ st.set_page_config(page_title="플래너 & 다이어리", layout="wide")
 st.title("🗓️ 플래너 & 다이어리")
 
 # Sidebar navigation
-section = st.sidebar.selectbox("메뉴", ["일정 보기", "일정 추가"])
+if "section" not in st.session_state:
+    st.session_state.section = "일정 보기"
+# Handle pending navigation change
+if "go_to_section" in st.session_state:
+    st.session_state.section = st.session_state.go_to_section
+    del st.session_state.go_to_section
+section = st.sidebar.selectbox("메뉴", ["일정 보기", "일정 추가"], key="section")
 
 if section == "일정 추가":
     st.header("새 일정 추가")
@@ -183,6 +189,13 @@ if section == "일정 추가":
             if not title:
                 st.error("제목은 필수입니다.")
             else:
+                # 반드시 이벤트를 저장하고 UI를 전환합니다
+                start_dt = datetime.combine(date, time)
+                repeat_val = None if repeat == "없음" else repeat
+                new_event = add_event(title, start_dt, repeat_val, description)
+                st.success(f"이벤트가 저장되었습니다. ID: {new_event['id']}")
+                # Set navigation flag for next run
+                st.session_state.go_to_section = "일정 보기"
                 st.toast("일정이 추가되었습니다.", icon="✅")
                 st.rerun()
 
@@ -217,11 +230,11 @@ elif section == "일정 보기":
                 e["title"] for e in events if e["id"] == x
             ),
         )
-if st.button("선택된 일정 삭제"):
-    for eid in ids_to_delete:
-        delete_event(eid)
-    st.toast("선택된 일정이 삭제되었습니다.", icon="✅")
-    st.rerun()
+        if st.button("선택된 일정 삭제"):
+            for eid in ids_to_delete:
+                delete_event(eid)
+            st.toast("선택된 일정이 삭제되었습니다.", icon="✅")
+            st.rerun()
 
 # Note: The background scheduler thread will continue to run and send OS
 # notifications via plyer.
