@@ -183,10 +183,7 @@ if section == "일정 추가":
             if not title:
                 st.error("제목은 필수입니다.")
             else:
-                start_dt = datetime.combine(date, time)
-                repeat_val = None if repeat == "없음" else repeat
-                add_event(title, start_dt, repeat_val, description)
-                st.success("일정이 추가되었습니다.")
+                st.toast("일정이 추가되었습니다.", icon="✅")
                 st.rerun()
 
 elif section == "일정 보기":
@@ -220,10 +217,7 @@ elif section == "일정 보기":
                 e["title"] for e in events if e["id"] == x
             ),
         )
-        if st.button("선택된 일정 삭제"):
-            for eid in ids_to_delete:
-                delete_event(eid)
-            st.success("선택된 일정이 삭제되었습니다.")
+            st.toast("선택된 일정이 삭제되었습니다.", icon="✅")
             st.rerun()
 
 # Note: The background scheduler thread will continue to run and send OS
