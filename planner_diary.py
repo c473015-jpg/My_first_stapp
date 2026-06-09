@@ -160,7 +160,7 @@ if section == "일정 추가":
                 repeat_val = None if repeat == "없음" else repeat
                 add_event(title, start_dt, repeat_val, description)
                 st.success("일정이 추가되었습니다.")
-                st.experimental_rerun()
+                st.rerun()
 
 elif section == "일정 보기":
     st.header("일정 목록")
