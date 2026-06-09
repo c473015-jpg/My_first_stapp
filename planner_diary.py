@@ -1,30 +1,24 @@
+# Refactored Planner & Diary application using Streamlit
+# Security: input validation, atomic JSON writes, no eval/exec, limited file paths
+
 import json
 import os
 import uuid
 import threading
 from datetime import datetime, timedelta
-import tkinter as tk
-from tkinter import simpledialog, messagebox, ttk
-
-# External dependencies (must be installed via pip)
-# schedule: lightweight job scheduler
-# plyer: cross‑platform notification library
 import schedule
 from plyer import notification
+import streamlit as st
 
 # ---------------------------------------------------------------------------
-# Security considerations
+# Configuration
 # ---------------------------------------------------------------------------
-# * All external data (user input) is validated before being written to disk.
-# * JSON file is written atomically to avoid corruption.
-# * No eval/exec is used.
-# * Paths are confined to the application directory.
-# ---------------------------------------------------------------------------
-
 APP_DIR = os.path.abspath(os.path.dirname(__file__))
 DATA_FILE = os.path.join(APP_DIR, "events.json")
 
-
+# ---------------------------------------------------------------------------
+# Data handling
+# ---------------------------------------------------------------------------
 def load_events():
     """Load events from the JSON file. Returns a list of dicts."""
     if not os.path.exists(DATA_FILE):
@@ -33,9 +27,8 @@ def load_events():
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
-        print(f"[Error] Failed to load events: {e}")
+        st.error(f"[Error] Failed to load events: {e}")
         return []
-
 
 def save_events(events):
     """Save events atomically to the JSON file."""
@@ -45,8 +38,7 @@ def save_events(events):
             json.dump(events, f, ensure_ascii=False, indent=2)
         os.replace(temp_path, DATA_FILE)
     except Exception as e:
-        print(f"[Error] Failed to save events: {e}")
-
+        st.error(f"[Error] Failed to save events: {e}")
 
 def add_event(title, start_dt, repeat=None, description=""):
     """Create a new event and persist it.
@@ -64,13 +56,14 @@ def add_event(title, start_dt, repeat=None, description=""):
     save_events(events)
     return event
 
-
 def delete_event(event_id):
     events = load_events()
     events = [e for e in events if e["id"] != event_id]
     save_events(events)
 
-
+# ---------------------------------------------------------------------------
+# Scheduling & notifications
+# ---------------------------------------------------------------------------
 def get_due_events(now=None):
     """Return events that should trigger a notification at *now*.
     Handles repeating logic.
@@ -81,28 +74,23 @@ def get_due_events(now=None):
     for ev in load_events():
         start = datetime.fromisoformat(ev["start"])
         repeat = ev.get("repeat")
-        # Compute the next occurrence based on repeat interval
+        # Compute next occurrence based on repeat interval
         if repeat == "daily":
-            # Align to same time each day
             next_occ = start.replace(year=now.year, month=now.month, day=now.day)
             if next_occ < now:
                 next_occ += timedelta(days=1)
         elif repeat == "weekly":
-            # Same weekday and time each week
             days_ahead = (start.weekday() - now.weekday()) % 7
             next_occ = now + timedelta(days=days_ahead)
             next_occ = next_occ.replace(hour=start.hour, minute=start.minute, second=start.second, microsecond=0)
             if next_occ < now:
                 next_occ += timedelta(weeks=1)
         elif repeat == "monthly":
-            # Same day-of-month and time
             try:
                 next_occ = now.replace(day=start.day, hour=start.hour, minute=start.minute, second=start.second, microsecond=0)
             except ValueError:
-                # Invalid day (e.g., Feb 30) – skip this month
                 continue
             if next_occ < now:
-                # move to next month safely
                 month = now.month + 1 if now.month < 12 else 1
                 year = now.year if now.month < 12 else now.year + 1
                 try:
@@ -110,13 +98,11 @@ def get_due_events(now=None):
                 except ValueError:
                     continue
         else:
-            # Non‑repeating event
             next_occ = start
         # Notify if the occurrence is within the next minute
         if 0 <= (next_occ - now).total_seconds() < 60:
             due.append((ev, next_occ))
     return due
-
 
 def notify(event, occ_time):
     """Show a desktop notification for *event* using plyer."""
@@ -127,15 +113,7 @@ def notify(event, occ_time):
     try:
         notification.notify(title=title, message=msg, timeout=10)
     except Exception as e:
-        print(f"[Error] Notification failed: {e}")
-
-
-def scheduler_loop():
-    """Background thread that runs pending schedule jobs every second."""
-    while True:
-        schedule.run_pending()
-        threading.Event().wait(1)
-
+        st.error(f"[Error] Notification failed: {e}")
 
 def check_and_notify():
     now = datetime.now()
@@ -145,104 +123,64 @@ def check_and_notify():
 # Schedule the check to run every minute
 schedule.every(1).minutes.do(check_and_notify)
 
-# Start scheduler in a daemon thread
-threading.Thread(target=scheduler_loop, daemon=True).start()
+def scheduler_loop():
+    """Background thread that runs pending schedule jobs every second."""
+    while True:
+        schedule.run_pending()
+        threading.Event().wait(1)
+
+# Ensure the scheduler thread is started only once per session
+if "scheduler_started" not in st.session_state:
+    threading.Thread(target=scheduler_loop, daemon=True).start()
+    st.session_state["scheduler_started"] = True
 
 # ---------------------------------------------------------------------------
-# Tkinter UI
+# Streamlit UI
 # ---------------------------------------------------------------------------
-class PlannerApp(tk.Tk):
-    def __init__(self):
-        super().__init__()
-        self.title("플래너 & 다이어리")
-        self.geometry("600x400")
-        self.create_widgets()
-        self.refresh_list()
+st.set_page_config(page_title="플래너 & 다이어리", layout="wide")
+st.title("🗓️ 플래너 & 다이어리")
 
-    def create_widgets(self):
-        self.tree = ttk.Treeview(self, columns=("title", "start", "repeat"), show="headings")
-        self.tree.heading("title", text="제목")
-        self.tree.heading("start", text="시작 시간")
-        self.tree.heading("repeat", text="반복")
-        self.tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+# Sidebar navigation
+section = st.sidebar.selectbox("메뉴", ["일정 보기", "일정 추가"])
 
-        btn_frame = tk.Frame(self)
-        btn_frame.pack(fill=tk.X, padx=10)
-        tk.Button(btn_frame, text="추가", command=self.add_event_dialog).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="삭제", command=self.delete_selected).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="새로고침", command=self.refresh_list).pack(side=tk.LEFT, padx=5)
+if section == "일정 추가":
+    st.header("새 일정 추가")
+    with st.form(key="add_event_form"):
+        title = st.text_input("제목")
+        date = st.date_input("날짜")
+        time = st.time_input("시간")
+        repeat = st.selectbox("반복", ["없음", "daily", "weekly", "monthly"])
+        description = st.text_area("설명")
+        submitted = st.form_submit_button("추가")
+        if submitted:
+            if not title:
+                st.error("제목은 필수입니다.")
+            else:
+                start_dt = datetime.combine(date, time)
+                repeat_val = None if repeat == "없음" else repeat
+                add_event(title, start_dt, repeat_val, description)
+                st.success("일정이 추가되었습니다.")
+                st.experimental_rerun()
 
-    def refresh_list(self):
-        for row in self.tree.get_children():
-            self.tree.delete(row)
-        for ev in load_events():
+elif section == "일정 보기":
+    st.header("일정 목록")
+    events = load_events()
+    if not events:
+        st.info("등록된 일정이 없습니다.")
+    else:
+        # Prepare table data
+        table_data = []
+        for ev in events:
             start = datetime.fromisoformat(ev["start"]).strftime("%Y-%m-%d %H:%M")
             repeat = ev.get("repeat") or "없음"
-            self.tree.insert("", tk.END, iid=ev["id"], values=(ev["title"], start, repeat))
+            table_data.append({"ID": ev["id"], "제목": ev["title"], "시작": start, "반복": repeat, "설명": ev.get("description", "")})
+        st.dataframe(table_data, hide_index=True)
+        # Deletion UI
+        ids_to_delete = st.multiselect("삭제할 일정을 선택하세요", options=[ev["id"] for ev in events], format_func=lambda x: next(e["title"] for e in events if e["id"] == x))
+        if st.button("선택된 일정 삭제"):
+            for eid in ids_to_delete:
+                delete_event(eid)
+            st.success("선택된 일정이 삭제되었습니다.")
+            st.experimental_rerun()
 
-    def add_event_dialog(self):
-        dialog = EventDialog(self)
-        self.wait_window(dialog)
-        if dialog.result:
-            title, dt_str, repeat, description = dialog.result
-            try:
-                start_dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
-                add_event(title, start_dt, repeat, description)
-                self.refresh_list()
-            except ValueError:
-                messagebox.showerror("입력 오류", "날짜 형식은 YYYY-MM-DD HH:MM 이어야 합니다.")
-
-    def delete_selected(self):
-        sel = self.tree.selection()
-        if not sel:
-            return
-        for iid in sel:
-            delete_event(iid)
-        self.refresh_list()
-
-class EventDialog(tk.Toplevel):
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.title("새 일정")
-        self.result = None
-        self.create_widgets()
-        self.grab_set()
-
-    def create_widgets(self):
-        tk.Label(self, text="제목:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
-        self.title_entry = tk.Entry(self, width=30)
-        self.title_entry.grid(row=0, column=1, padx=5, pady=5)
-
-        tk.Label(self, text="시작 (YYYY-MM-DD HH:MM):").grid(row=1, column=0, sticky="e", padx=5, pady=5)
-        self.start_entry = tk.Entry(self, width=30)
-        self.start_entry.grid(row=1, column=1, padx=5, pady=5)
-
-        tk.Label(self, text="반복:").grid(row=2, column=0, sticky="e", padx=5, pady=5)
-        self.repeat_var = tk.StringVar(value="none")
-        repeat_options = ["none", "daily", "weekly", "monthly"]
-        ttk.Combobox(self, textvariable=self.repeat_var, values=repeat_options, state="readonly").grid(row=2, column=1, padx=5, pady=5)
-
-        tk.Label(self, text="설명:").grid(row=3, column=0, sticky="ne", padx=5, pady=5)
-        self.desc_text = tk.Text(self, width=30, height=5)
-        self.desc_text.grid(row=3, column=1, padx=5, pady=5)
-
-        btn_frame = tk.Frame(self)
-        btn_frame.grid(row=4, columnspan=2, pady=10)
-        tk.Button(btn_frame, text="확인", command=self.on_ok).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="취소", command=self.destroy).pack(side=tk.LEFT, padx=5)
-
-    def on_ok(self):
-        title = self.title_entry.get().strip()
-        start = self.start_entry.get().strip()
-        repeat = self.repeat_var.get()
-        description = self.desc_text.get("1.0", tk.END).strip()
-        if not title or not start:
-            messagebox.showerror("입력 오류", "제목과 시작 시간은 필수입니다.")
-            return
-        repeat_val = None if repeat == "none" else repeat
-        self.result = (title, start, repeat_val, description)
-        self.destroy()
-
-if __name__ == "__main__":
-    app = PlannerApp()
-    app.mainloop()
+# Note: The background scheduler thread will continue to run and send OS notifications via plyer.
