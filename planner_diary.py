@@ -217,8 +217,11 @@ elif section == "일정 보기":
                 e["title"] for e in events if e["id"] == x
             ),
         )
-            st.toast("선택된 일정이 삭제되었습니다.", icon="✅")
-            st.rerun()
+if st.button("선택된 일정 삭제"):
+    for eid in ids_to_delete:
+        delete_event(eid)
+    st.toast("선택된 일정이 삭제되었습니다.", icon="✅")
+    st.rerun()
 
 # Note: The background scheduler thread will continue to run and send OS
 # notifications via plyer.
